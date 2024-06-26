@@ -1,0 +1,11 @@
+.venv
+*.csv
+cache
+
+# Docker volumes
+data
+metabase-data
+
+# Byte-compiled / optimized / generated files
+__pycache__
+*.py[co]
