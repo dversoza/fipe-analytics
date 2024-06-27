@@ -1,5 +1,5 @@
+import json
 import logging
-import sys
 
 from providers.fipe.crawler import FipeCrawler
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -11,21 +11,22 @@ logging.basicConfig(
 
 
 def main():
-    args = sys.argv[1:]
+    try:
+        with open("checkpoint.json", "r") as f:
+            checkpoint = json.load(f)
+    except FileNotFoundError:
+        checkpoint = {}
 
-    crawler = FipeCrawler()
+    crawler = FipeCrawler(checkpoint)
 
-    if len(args) == 0:
-        with logging_redirect_tqdm():
-            crawler.populate_old_reference_tables(year_lte=2002)
-
-    elif len(args) == 1:
-        crawler.populate_prices_for_year(args[0])
-
-    else:
-        logging.error("Invalid number of arguments")
-
-        sys.exit(1)
+    with logging_redirect_tqdm():
+        try:
+            crawler.populate_reference_tables_in_ascending_order(year_lte=2002)
+        except KeyboardInterrupt:
+            logging.error("Process interrupted by the user")
+            checkpoint = crawler.get_checkpoint()
+            with open("checkpoint.json", "w") as f:
+                json.dump(checkpoint, f)
 
 
 if __name__ == "__main__":
