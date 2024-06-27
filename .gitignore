@@ -1,10 +1,10 @@
 .venv
 *.csv
 cache
+.DS_Store
 
 # Docker volumes
-data
-metabase-data
+*data/
 
 # Byte-compiled / optimized / generated files
 __pycache__

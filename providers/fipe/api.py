@@ -58,8 +58,23 @@ class FipeApi:
         if os.path.exists(_cached_file_path):
             os.remove(_cached_file_path)
 
-    def _make_request_raw(self, url, params):
+    def _make_request_raw(self, url, params, retry_count=0):
         response = requests.post(url, params=params, timeout=10)
+
+        if response.status_code == 429:
+            logger.error("Cloudflare protection triggered. Waiting 10 seconds.")
+            time.sleep(10)
+            if retry_count < 3:
+                logger.error("Retrying request...")
+                return self._make_request_raw(url, params, retry_count + 1)
+
+        if response.status_code == 520:
+            logger.error("Cloudflare error. Waiting 10 seconds.")
+            time.sleep(10)
+            if retry_count < 3:
+                logger.error("Retrying request...")
+                return self._make_request_raw(url, params, retry_count + 1)
+
         if response.status_code != 200:
             logger.error(
                 "Request to %s failed with status code %s: %s",
@@ -67,11 +82,10 @@ class FipeApi:
                 response.status_code,
                 response.text,
             )
-
-        if "Just a moment..." in response.text:
-            logger.error("Cloudflare protection triggered. Waiting 10 seconds.")
-            time.sleep(10)
-            return self._make_request_raw(url, params)
+            if retry_count < 3:
+                logger.error("Retrying request...")
+                time.sleep(5)
+                return self._make_request_raw(url, params, retry_count + 1)
 
         time.sleep(0.5)
 
@@ -95,6 +109,7 @@ class FipeApi:
             raise exc
 
         if "erro" in response_json:
+            breakpoint()
             logger.error("Error: %s", response_json.get("erro"))
             raise FipeApiRequestException(response_json.get("erro"))
 
