@@ -28,7 +28,9 @@ from sqlalchemy.orm import registry
 
 mapper_registry = registry()
 
-SQLAlchemyDeclarativeBase = mapper_registry.generate_base()
+SQLAlchemyDeclarativeBase = mapper_registry.generate_base(
+    name="SQLAlchemyDeclarativeBase"
+)
 
 
 __all__ = ["mapper_registry", "SQLAlchemyDeclarativeBase"]

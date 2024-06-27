@@ -2,9 +2,8 @@ import logging
 
 from tqdm import tqdm
 
-from db.old_create_db import create_db_connection
-
-from .api import FipeApi, FipeApiRequestException
+from providers.fipe.api import FipeApi, FipeApiRequestException
+from providers.fipe.services import FipeDatabaseRepository
 
 logger = logging.getLogger(__name__)
 
@@ -12,16 +11,20 @@ logger = logging.getLogger(__name__)
 class FipeCrawler:
     def __init__(self, db_conn=None) -> None:
         self.fipe_api = FipeApi()
-        self.conn = db_conn or create_db_connection()
+        self.fipe_db_repo = FipeDatabaseRepository()
 
-    def populate_prices_for_year(self, year):
-        tabelas_referencia = self.fipe_api.get_tabelas_de_referencia()
+    def populate_prices_for_year_month(self, year, month):
+        _reference_tables = self.fipe_api.get_reference_tables()
 
-        _iterable = tqdm(tabelas_referencia[year], desc="Tabela Referência")
-        for ref_table_code, ref_table_name in _iterable:
-            logger.info("Buscando preços para a tabela referência: %s", ref_table_name)
+        self.fipe_db_repo.persist_reference_tables(_reference_tables)
 
-            self.populate_prices_for_tabela_referencia(ref_table_code)
+        reference_tables = _reference_tables.organize_by_year_month()
+
+        ref_table = reference_tables[year][month]
+
+        logger.info("Buscando preços para a tabela referência: %s", ref_table)
+
+        self.populate_prices_for_tabela_referencia(ref_table)
 
     def populate_prices_for_tabela_referencia(self, codigo_tabela_referencia):
         marcas = self.fipe_api.get_marcas(codigo_tabela_referencia)

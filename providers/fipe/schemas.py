@@ -10,7 +10,7 @@ class FipeApiReferenceTableSchema(BaseModel):
     display_name: str = Field(alias="Mes")
 
 
-class FipeApiReferenceTableResponseSchema(BaseModel):
+class FipeApiReferenceTablesResponseSchema(BaseModel):
     reference_tables: list[FipeApiReferenceTableSchema]
 
     def organize_by_year_month(self) -> dict[int, dict[int, str]]:
@@ -34,3 +34,70 @@ class FipeApiReferenceTableResponseSchema(BaseModel):
             result[year][month] = reference_table.code
 
         return result
+
+
+class FipeApiManufacturerSchema(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    code: str = Field(alias="Value")
+    display_name: str = Field(alias="Label")
+
+
+class FipeApiManufacturersResponseSchema(BaseModel):
+    manufacturers: list[FipeApiManufacturerSchema]
+
+
+class FipeApiCarModelSchema(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    code: str = Field(alias="Value")
+    display_name: str = Field(alias="Label")
+
+
+class FipeApiCarModelsResponseSchema(BaseModel):
+    car_models: list[FipeApiCarModelSchema]
+
+
+class FipeApiCarModelYearSchema(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    code: str = Field(alias="Value")
+    display_name: str = Field(alias="Label")
+
+
+class FipeApiCarModelYearsResponseSchema(BaseModel):
+    car_model_years: list[FipeApiCarModelYearSchema]
+
+
+class FipeApiCarPriceResponseSchema(BaseModel):
+    """
+    {
+        "Valor": "R$ 125.383,00",
+        "Marca": "Ford",
+        "Modelo": "Fusion Titanium 2.0 GTDI Eco. Awd Aut.",
+        "AnoModelo": 2019,
+        "Combustivel": "Gasolina",
+        "CodigoFipe": "003376-6",
+        "MesReferencia": "junho de 2024 ",
+        "Autenticacao": "g2bmp6342sc9z",
+        "TipoVeiculo": 1,
+        "SiglaCombustivel": "G",
+        "DataConsulta": "quinta-feira, 27 de junho de 2024 13:24"
+    }
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    value: str = Field(alias="Valor")
+    manufacturer_name: str = Field(alias="Marca")
+    model_name: str = Field(alias="Modelo")
+    model_year: int = Field(alias="AnoModelo")
+    fuel_type_name: str = Field(alias="Combustivel")
+    fipe_vehicle_code: str = Field(alias="CodigoFipe")
+    reference_month_name: str = Field(alias="MesReferencia")
+    authentication: str = Field(alias="Autenticacao")
+    vehicle_type_id: int = Field(alias="TipoVeiculo")
+    fuel_type_code: str = Field(alias="SiglaCombustivel")
+    query_date: str = Field(alias="DataConsulta")
+
+    raw_data: dict = Field(alias="raw_data")

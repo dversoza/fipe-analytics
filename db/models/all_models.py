@@ -1,8 +1,8 @@
 """Database models for the reference tables."""
 
-from sqlalchemy import JSON, Column, Float, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
-
+from sqlalchemy import JSON, Float, ForeignKey, Integer, String, SmallInteger
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.orm import Session
 from db.models.base import SQLAlchemyDeclarativeBase
 
 
@@ -11,10 +11,20 @@ class ReferenceTable(SQLAlchemyDeclarativeBase):
 
     __tablename__ = "tabela_referencia"
 
-    fipe_id = Column(String(10), primary_key=True)
-    display_name = Column(String(255))
-    month = Column("mes", Integer)
-    year = Column("ano", Integer)
+    fipe_id: Mapped[str] = mapped_column("fipe_id", String(10), primary_key=True)
+    display_name: Mapped[str] = mapped_column("display_name", String(255))
+    month: Mapped[int] = mapped_column("mes", Integer)
+    year: Mapped[int] = mapped_column("ano", Integer)
+
+    def get_latest_reference_table(self, session: Session) -> "ReferenceTable":
+        return (
+            session.query(ReferenceTable)
+            .order_by(
+                ReferenceTable.year.desc(),
+                ReferenceTable.month.desc(),
+            )
+            .first()
+        )
 
 
 class Manufacturer(SQLAlchemyDeclarativeBase):
@@ -22,63 +32,73 @@ class Manufacturer(SQLAlchemyDeclarativeBase):
 
     __tablename__ = "marca"
 
-    fipe_id = Column(String(10), primary_key=True)
-    display_name = Column(String(255))
+    fipe_id: Mapped[str] = mapped_column("fipe_id", String(10), primary_key=True)
+    display_name: Mapped[str] = mapped_column("display_name", String(255))
+    vehicle_type_id: Mapped[int] = mapped_column("tipo_veiculo", SmallInteger)
 
     models = relationship("Model", back_populates="manufacturer")
 
 
-class Model(SQLAlchemyDeclarativeBase):
+class CarModel(SQLAlchemyDeclarativeBase):
     """Car models."""
 
     __tablename__ = "modelo"
 
-    fipe_id = Column(String(10), primary_key=True)
-    manufacturer_id = Column(String(10), ForeignKey("marca.fipe_id"))
-    display_name = Column(String(255))
-    vehicle_type = Column("tipo_veiculo", Integer)
+    fipe_id: Mapped[str] = mapped_column("fipe_id", String(10), primary_key=True)
+    display_name: Mapped[str] = mapped_column("display_name", String(255))
+    manufacturer_id: Mapped[str] = mapped_column(
+        "marca_id", String(10), ForeignKey("marca.fipe_id")
+    )
 
     manufacturer = relationship("Manufacturer", back_populates="models")
 
 
-class ModelYear(SQLAlchemyDeclarativeBase):
+class CarModelYear(SQLAlchemyDeclarativeBase):
     """Car model years."""
 
     __tablename__ = "ano_modelo"
 
-    model_id = Column(String(10), ForeignKey("modelo.fipe_id"), primary_key=True)
-    fipe_id = Column(String(10), primary_key=True)
-    year = Column("ano", Integer)
-    fuel_type = Column("tipo_combustivel", Integer)
-    display_name = Column(String(255))
+    fipe_id: Mapped[str] = mapped_column("fipe_id", String(10), primary_key=True)
+    model_id: Mapped[str] = mapped_column(
+        "modelo_id", String(10), ForeignKey("modelo.fipe_id")
+    )
+    display_name: Mapped[str] = mapped_column("display_name", String(255))
+    year: Mapped[int] = mapped_column("ano", Integer)
+    fuel_type: Mapped[int] = mapped_column("tipo_combustivel", Integer)
 
     model = relationship("Model")
 
 
-class Price(SQLAlchemyDeclarativeBase):
+class CarPrice(SQLAlchemyDeclarativeBase):
     """Car prices."""
 
     __tablename__ = "preco"
 
-    id = Column(Integer, primary_key=True)
-    manufacturer_id = Column(String(10), ForeignKey("marca.fipe_id"))
-    model_id = Column(String(10), ForeignKey("modelo.fipe_id"))
-    model_year_id = Column(String(10), ForeignKey("ano_modelo.fipe_id"))
-    vehicle_type_code = Column("codigo_tipo_veiculo", Integer)
-    reference_table_code = Column(
+    id: Mapped[int] = mapped_column("id", Integer, primary_key=True)
+    manufacturer_id: Mapped[str] = mapped_column(
+        "marca_id", String(10), ForeignKey("marca.fipe_id")
+    )
+    model_id: Mapped[str] = mapped_column(
+        "modelo_id", String(10), ForeignKey("modelo.fipe_id")
+    )
+    model_year_id: Mapped[str] = mapped_column(
+        "ano_modelo_id", String(10), ForeignKey("ano_modelo.fipe_id")
+    )
+    vehicle_type_id: Mapped[int] = mapped_column("codigo_tipo_veiculo", Integer)
+    reference_table_id: Mapped[str] = mapped_column(
         "codigo_tabela_referencia", String(10), ForeignKey("tabela_referencia.fipe_id")
     )
-    authentication = Column("autenticacao", String(255), unique=True)
-    query_date = Column("data_consulta", String(255))
-    reference_month = Column("mes_referencia", String(255))
-    value = Column("valor", Float)
-    fipe_vehicle_code = Column("codigo_fipe_veiculo", String(10))
-    raw_data = Column("raw_data", JSON)
+    authentication: Mapped[str] = mapped_column("autenticacao", String(255))
+    query_date: Mapped[str] = mapped_column("data_consulta", String(255))
+    reference_month: Mapped[str] = mapped_column("mes_referencia", String(255))
+    fipe_vehicle_code: Mapped[str] = mapped_column("codigo_fipe", String(10))
+    value: Mapped[float] = mapped_column("valor", Float)
+    raw_data: Mapped[dict] = mapped_column("raw_data", JSON)
 
     manufacturer = relationship("Manufacturer")
-    model = relationship("Model")
-    model_year = relationship("ModelYear")
+    model = relationship("CarModel")
+    model_year = relationship("CarModelYear")
     reference_table = relationship("ReferenceTable")
 
 
-__all__ = ["ReferenceTable", "Manufacturer", "Model", "ModelYear", "Price"]
+__all__ = ["ReferenceTable", "Manufacturer", "CarModel", "CarModelYear", "CarPrice"]
