@@ -1,8 +1,10 @@
-from tqdm import tqdm
 import logging
 
+from tqdm import tqdm
+
+from db.old_create_db import create_db_connection
+
 from .api import FipeApi, FipeApiRequestException
-from db.create_db import create_db_connection
 
 logger = logging.getLogger(__name__)
 

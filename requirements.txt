@@ -1,0 +1,4 @@
+celery
+psycopg
+requests
+SQLAlchemy

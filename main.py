@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from db.create_db import create_db, create_db_connection
+from db.old_create_db import create_db, create_db_connection
 from providers.fipe.crawler import FipeCrawler
 from tqdm.contrib.logging import logging_redirect_tqdm
 

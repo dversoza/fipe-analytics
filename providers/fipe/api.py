@@ -1,11 +1,14 @@
 import json
+import locale
 import logging
-from hashlib import sha256
 import os
 import time
-import locale
 from datetime import datetime
+from hashlib import sha256
+
 import requests
+
+from providers.fipe.exceptions import FipeApiRequestException
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +24,6 @@ def _mes_str_to_int(mes):
 def _price_str_to_float(price_str):
     formatted_str = price_str.replace("R$", "").replace(".", "").replace(",", ".")
     return float(formatted_str)
-
-
-class FipeApiRequestException(Exception):
-    pass
 
 
 class FipeApi:
@@ -61,35 +60,27 @@ class FipeApi:
     def _make_request_raw(self, url, params, retry_count=0):
         response = requests.post(url, params=params, timeout=10)
 
+        if response.status_code == 200:
+            time.sleep(0.5)
+
+            return response.text
+
+        logger.error("Request to failed with status code %s", response.status_code)
+        logger.debug("URL: %s", url)
+        logger.debug("Params: %s", params)
+        logger.debug("Response: %s", response.text)
+
         if response.status_code == 429:
             logger.error("Cloudflare protection triggered. Waiting 10 seconds.")
             time.sleep(10)
-            if retry_count < 3:
-                logger.error("Retrying request...")
-                return self._make_request_raw(url, params, retry_count + 1)
 
         if response.status_code == 520:
-            logger.error("Cloudflare error. Waiting 10 seconds.")
-            time.sleep(10)
-            if retry_count < 3:
-                logger.error("Retrying request...")
-                return self._make_request_raw(url, params, retry_count + 1)
+            logger.error("Cloudflare error. Waiting 5 seconds.")
+            time.sleep(5)
 
-        if response.status_code != 200:
-            logger.error(
-                "Request to %s failed with status code %s: %s",
-                url,
-                response.status_code,
-                response.text,
-            )
-            if retry_count < 3:
-                logger.error("Retrying request...")
-                time.sleep(5)
-                return self._make_request_raw(url, params, retry_count + 1)
-
-        time.sleep(0.5)
-
-        return response.text
+        if retry_count < 3:
+            logger.error("Retrying request...")
+            return self._make_request_raw(url, params, retry_count + 1)
 
     def _make_request(self, endpoint, params=None, cache_expire=None):
         url = self.BASE_URL + endpoint
@@ -109,7 +100,6 @@ class FipeApi:
             raise exc
 
         if "erro" in response_json:
-            breakpoint()
             logger.error("Error: %s", response_json.get("erro"))
             raise FipeApiRequestException(response_json.get("erro"))
 
