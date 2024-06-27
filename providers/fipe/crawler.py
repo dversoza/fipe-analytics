@@ -1,105 +1,97 @@
 import logging
 
+from sqlalchemy.orm import Session
 from tqdm import tqdm
 
-from providers.fipe.api import FipeApi, FipeApiRequestException
+from db import services as db_services
+from db.engine import create_db_engine
+from providers.fipe.api import FipeApi
 from providers.fipe.services import FipeDatabaseRepository
 
 logger = logging.getLogger(__name__)
 
 
 class FipeCrawler:
-    def __init__(self, db_conn=None) -> None:
+    def __init__(self) -> None:
         self.fipe_api = FipeApi()
         self.fipe_db_repo = FipeDatabaseRepository()
+        self.db_session = Session(bind=create_db_engine())
 
-    def populate_prices_for_year_month(self, year, month):
-        _reference_tables = self.fipe_api.get_reference_tables()
-
-        self.fipe_db_repo.persist_reference_tables(_reference_tables)
-
-        reference_tables = _reference_tables.organize_by_year_month()
-
-        ref_table = reference_tables[year][month]
-
-        logger.info("Buscando preços para a tabela referência: %s", ref_table)
-
-        self.populate_prices_for_tabela_referencia(ref_table)
-
-    def populate_prices_for_tabela_referencia(self, codigo_tabela_referencia):
-        marcas = self.fipe_api.get_marcas(codigo_tabela_referencia)
-        for marca_name, marca_code in tqdm(marcas.items(), desc="Marcas"):
-            logger.info("Buscando preços para a marca: %s", marca_name)
-
-            self.populate_prices_for_marca(codigo_tabela_referencia, marca_code)
-
-    def populate_prices_for_marca(self, codigo_tabela_referencia, codigo_marca):
-        try:
-            modelos = self.fipe_api.get_modelos(codigo_tabela_referencia, codigo_marca)
-        except FipeApiRequestException:
-            logger.error("Failed to get modelos for %s", codigo_tabela_referencia)
-            return
-
-        logger.info("%s modelos encontrados", len(modelos))
-
-        self.fipe_api.insert_modelos(self.conn, codigo_marca, modelos)
-
-        _iterable = tqdm(modelos.items(), leave=False, desc="Modelos")
-        for modelo_name, modelo_code in _iterable:
-            logger.debug("Buscando preços para o modelo %s", modelo_name)
-
-            self.populate_prices_for_modelo(
-                codigo_tabela_referencia, codigo_marca, modelo_code
-            )
-
-    def populate_prices_for_modelo(
-        self, codigo_tabela_referencia, codigo_marca, modelo_code
+    def populate_old_reference_tables(
+        self, year_lte: int = 2002, vehicle_type_id: int = 1
     ):
-        try:
-            anos_modelo = self.fipe_api.get_anos_modelo(
-                codigo_tabela_referencia, codigo_marca, modelo_code
-            )
-        except FipeApiRequestException:
-            logger.error(
-                "Failed to get anos_modelo for %s on %s",
-                modelo_code,
-                codigo_tabela_referencia,
-            )
-            return
-
-        logger.debug("%s ano-modelos encontrados", len(anos_modelo))
-
-        self.fipe_api.insert_ano_modelo(self.conn, modelo_code, anos_modelo)
-
-        _iterable = tqdm(anos_modelo.items(), leave=False, desc="AnosModelo")
-        for _, ano_modelo_code in _iterable:
-            logger.debug("Buscando preços para o ano modelo: %s", ano_modelo_code)
-
-            self.populate_prices_for_ano_modelo(
-                codigo_tabela_referencia, codigo_marca, modelo_code, ano_modelo_code
+        _reference_tables = db_services.list_reference_tables(
+            self.db_session, year_lte=year_lte
+        )
+        for reference_table in _reference_tables:
+            self.populate_prices_for_reference_table(
+                reference_table.fipe_id, vehicle_type_id
             )
 
-    def populate_prices_for_ano_modelo(
-        self, codigo_tabela_referencia, codigo_marca, codigo_modelo, ano_modelo_code
+    def populate_prices_for_reference_table(
+        self, reference_table_id: str, vehicle_type_id: int = 1
     ):
-        ano, tipo_combustivel = ano_modelo_code.split("-")
-        try:
-            price = self.fipe_api.get_price(
-                codigo_tabela_referencia,
-                codigo_marca,
-                codigo_modelo,
-                ano,
-                codigo_tipo_combustivel=tipo_combustivel,
-            )
-        except FipeApiRequestException as exc:
-            logger.error(
-                "Failed to get price for %s - %s - %s - %s",
-                codigo_tabela_referencia,
-                codigo_marca,
-                codigo_modelo,
-                ano,
-            )
-            logger.error(exc)
-            raise exc
+        manufacturers_response = self.fipe_api.get_manufacturers(
+            reference_table_id, vehicle_type_id
+        )
+        self.fipe_db_repo.persist_manufacturers(manufacturers_response, vehicle_type_id)
+        for manufacturer in tqdm(manufacturers_response.manufacturers, desc="Marcas"):
+            logger.info("Processando Marca: %s", manufacturer.display_name)
 
-        self.fipe_api.insert_price(self.conn, price)
+            self.populate_prices_for_manufacturer(
+                reference_table_id, manufacturer.code, vehicle_type_id
+            )
+
+    def populate_prices_for_manufacturer(
+        self, reference_table_id: str, manufacturer_id: str, vehicle_type_id: int = 1
+    ):
+        car_models_response = self.fipe_api.get_car_models(
+            reference_table_id=reference_table_id,
+            manufacturer_id=manufacturer_id,
+            vehicle_type_id=vehicle_type_id,
+        )
+        self.fipe_db_repo.persist_car_models(car_models_response, manufacturer_id)
+        for car_model in tqdm(
+            car_models_response.car_models, desc="Modelos", leave=False
+        ):
+            logger.info("\tModelo: %s", car_model.display_name)
+
+            self.populate_prices_for_car_model(
+                reference_table_id, manufacturer_id, car_model.code, vehicle_type_id
+            )
+
+    def populate_prices_for_car_model(
+        self,
+        reference_table_id: str,
+        manufacturer_id: str,
+        model_id: str,
+        vehicle_type_id: int = 1,
+    ):
+        car_model_years_response = self.fipe_api.get_car_model_years(
+            reference_table_id, manufacturer_id, model_id, vehicle_type_id
+        )
+        self.fipe_db_repo.persist_car_model_years(car_model_years_response, model_id)
+        for car_model_year in tqdm(
+            car_model_years_response.car_model_years, desc="AnoModelo", leave=False
+        ):
+            logger.debug("\t\tAno-modelo: %s", car_model_year.display_name)
+
+            year_str, fuel_type_str = car_model_year.code.split("-")
+
+            car_price = self.fipe_api.get_price(
+                reference_table_id,
+                manufacturer_id,
+                model_id,
+                year_str,
+                vehicle_type_id,
+                fuel_type_str,
+            )
+
+            self.fipe_db_repo.persist_car_price(
+                car_price,
+                manufacturer_id,
+                model_id,
+                car_model_year.code,
+                vehicle_type_id,
+                reference_table_id,
+            )

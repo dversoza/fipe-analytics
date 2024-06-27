@@ -50,7 +50,7 @@ class FipeApiManufacturersResponseSchema(BaseModel):
 class FipeApiCarModelSchema(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    code: str = Field(alias="Value")
+    code: str | int = Field(alias="Value")
     display_name: str = Field(alias="Label")
 
 
@@ -90,8 +90,8 @@ class FipeApiCarPriceResponseSchema(BaseModel):
 
     value: str = Field(alias="Valor")
     manufacturer_name: str = Field(alias="Marca")
-    model_name: str = Field(alias="Modelo")
-    model_year: int = Field(alias="AnoModelo")
+    car_model_name: str = Field(alias="Modelo")
+    car_model_year: int = Field(alias="AnoModelo")
     fuel_type_name: str = Field(alias="Combustivel")
     fipe_vehicle_code: str = Field(alias="CodigoFipe")
     reference_month_name: str = Field(alias="MesReferencia")

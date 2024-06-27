@@ -13,8 +13,9 @@ def create_db_engine():
     server, and is configured using a URL string which will describe how it should
     connect to the database host or backend.
     """
+    DEBUG = False
 
-    return create_engine(DATABASE_URI, echo=True, future=True)
+    return create_engine(DATABASE_URI, echo=DEBUG, future=True)
 
 
 def execute_statement(db_engine: Engine, statement: str):

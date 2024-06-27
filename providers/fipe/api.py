@@ -1,9 +1,7 @@
 import json
-import locale
 import logging
 import os
 import time
-from datetime import datetime
 from hashlib import sha256
 
 import requests
@@ -14,17 +12,6 @@ from providers.fipe import schemas
 logger = logging.getLogger(__name__)
 
 ONE_MONTH = 3600 * 24 * 30
-
-
-def _mes_str_to_int(mes):
-    # ex. "junho" -> "06"
-    locale.setlocale(locale.LC_TIME, "pt_BR.UTF-8")
-    return datetime.strptime(mes, "%B").strftime("%m")
-
-
-def _price_str_to_float(price_str):
-    formatted_str = price_str.replace("R$", "").replace(".", "").replace(",", ".")
-    return float(formatted_str)
 
 
 class FipeApi:
@@ -165,7 +152,16 @@ class FipeApi:
             "codigoTipoVeiculo": str(vehicle_type_id),
         }
 
-        car_models_response = self._make_request("/ConsultarModelos", _params)
+        if _params["codigoTipoVeiculo"] == "3":
+            breakpoint()
+
+        try:
+            car_models_response = self._make_request("/ConsultarModelos", _params)
+        except exceptions.FipeApiRequestException as exc:
+            logger.error("Error fetching car models: %s", exc)
+            raise exceptions.CarModelDoesNotExistException(
+                "No car model found with the given parameters %s" % (_params)
+            ) from exc
 
         return schemas.FipeApiCarModelsResponseSchema(
             car_models=car_models_response["Modelos"]
@@ -193,26 +189,32 @@ class FipeApi:
 
     def get_price(
         self,
-        codigo_tabela_referencia,
-        codigo_marca,
-        codigo_modelo,
-        ano_modelo,
-        codigo_tipo_veiculo=1,
-        codigo_tipo_combustivel=1,
+        reference_table_id: int | str,
+        manufacturer_id: int | str,
+        car_model_id: int | str,
+        car_model_year: int | str,
+        vehicle_type_id: int | str = 1,
+        fuel_type_id: int | str = 1,
     ) -> schemas.FipeApiCarPriceResponseSchema:
         _params = {
-            "codigoTabelaReferencia": str(codigo_tabela_referencia),
-            "codigoMarca": str(codigo_marca),
-            "codigoModelo": str(codigo_modelo),
-            "codigoTipoVeiculo": str(codigo_tipo_veiculo),
-            "anoModelo": str(ano_modelo),
-            "codigoTipoCombustivel": str(codigo_tipo_combustivel),
+            "codigoTabelaReferencia": str(reference_table_id),
+            "codigoMarca": str(manufacturer_id),
+            "codigoModelo": str(car_model_id),
+            "codigoTipoVeiculo": str(vehicle_type_id),
+            "anoModelo": str(car_model_year),
+            "codigoTipoCombustivel": str(fuel_type_id),
             "tipoConsulta": "tradicional",
         }
 
-        car_price_response = self._make_request(
-            "/ConsultarValorComTodosParametros", _params
-        )
+        try:
+            car_price_response = self._make_request(
+                "/ConsultarValorComTodosParametros", _params
+            )
+        except exceptions.FipeApiRequestException as exc:
+            logger.error("Error fetching price: %s", exc)
+            raise exceptions.CarPriceDoesNotExistException(
+                "Price does not exist for the given parameters"
+            ) from exc
 
         return schemas.FipeApiCarPriceResponseSchema(
             raw_data=car_price_response,

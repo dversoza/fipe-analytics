@@ -36,7 +36,7 @@ class Manufacturer(SQLAlchemyDeclarativeBase):
     display_name: Mapped[str] = mapped_column("display_name", String(255))
     vehicle_type_id: Mapped[int] = mapped_column("tipo_veiculo", SmallInteger)
 
-    models = relationship("Model", back_populates="manufacturer")
+    models = relationship("CarModel", back_populates="manufacturer")
 
 
 class CarModel(SQLAlchemyDeclarativeBase):
@@ -50,7 +50,8 @@ class CarModel(SQLAlchemyDeclarativeBase):
         "marca_id", String(10), ForeignKey("marca.fipe_id")
     )
 
-    manufacturer = relationship("Manufacturer", back_populates="models")
+    manufacturer = relationship("Manufacturer", back_populates="models", lazy="joined")
+    model_years = relationship("CarModelYear", back_populates="car_model")
 
 
 class CarModelYear(SQLAlchemyDeclarativeBase):
@@ -66,7 +67,7 @@ class CarModelYear(SQLAlchemyDeclarativeBase):
     year: Mapped[int] = mapped_column("ano", Integer)
     fuel_type: Mapped[int] = mapped_column("tipo_combustivel", Integer)
 
-    model = relationship("Model")
+    car_model = relationship("CarModel", back_populates="model_years", lazy="joined")
 
 
 class CarPrice(SQLAlchemyDeclarativeBase):
@@ -91,7 +92,7 @@ class CarPrice(SQLAlchemyDeclarativeBase):
     authentication: Mapped[str] = mapped_column("autenticacao", String(255))
     query_date: Mapped[str] = mapped_column("data_consulta", String(255))
     reference_month: Mapped[str] = mapped_column("mes_referencia", String(255))
-    fipe_vehicle_code: Mapped[str] = mapped_column("codigo_fipe", String(10))
+    fipe_vehicle_code: Mapped[str] = mapped_column("codigo_fipe_veiculo", String(10))
     value: Mapped[float] = mapped_column("valor", Float)
     raw_data: Mapped[dict] = mapped_column("raw_data", JSON)
 

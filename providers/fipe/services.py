@@ -69,11 +69,11 @@ class FipeDatabaseRepository:
 
     def persist_car_model(
         self,
-        model: fipe_schemas.FipeApiModelSchema,
+        model: fipe_schemas.FipeApiCarModelSchema,
         manufacturer_id: str,
     ) -> None:
         stmt = (
-            insert(db_models.Model)
+            insert(db_models.CarModel)
             .values(
                 fipe_id=model.code,
                 display_name=model.display_name,
@@ -87,7 +87,7 @@ class FipeDatabaseRepository:
 
     def persist_car_models(
         self,
-        models: fipe_schemas.FipeApiModelsResponseSchema,
+        models: fipe_schemas.FipeApiCarModelsResponseSchema,
         manufacturer_id: str,
     ) -> None:
         for model in models.car_models:
@@ -95,13 +95,13 @@ class FipeDatabaseRepository:
 
     def persist_car_model_year(
         self,
-        model_year: fipe_schemas.FipeApiModelYearSchema,
+        model_year: fipe_schemas.FipeApiCarModelYearSchema,
         model_id: str,
     ) -> None:
-        year_str, fuel_type_str = model_year.display_name.split("-")
+        year_str, fuel_type_str = model_year.code.split("-")
 
         stmt = (
-            insert(db_models.ModelYear)
+            insert(db_models.CarModelYear)
             .values(
                 fipe_id=model_year.code,
                 display_name=model_year.display_name,
@@ -109,7 +109,7 @@ class FipeDatabaseRepository:
                 year=int(year_str.strip()),
                 fuel_type=int(fuel_type_str.strip()),
             )
-            .on_conflict_do_nothing(index_elements=["fipe_id", "model_id"])
+            .on_conflict_do_nothing(index_elements=["fipe_id", "modelo_id"])
         )
 
         self._session.execute(stmt)
@@ -117,7 +117,7 @@ class FipeDatabaseRepository:
 
     def persist_car_model_years(
         self,
-        model_years: fipe_schemas.FipeApiModelYearsResponseSchema,
+        model_years: fipe_schemas.FipeApiCarModelYearsResponseSchema,
         model_id: str,
     ) -> None:
         for model_year in model_years.car_model_years:
@@ -125,7 +125,7 @@ class FipeDatabaseRepository:
 
     def persist_car_price(
         self,
-        car_price: fipe_schemas.FipeApiCarPriceSchema,
+        car_price: fipe_schemas.FipeApiCarPriceResponseSchema,
         manufacturer_id: str,
         model_id: str,
         model_year_id: str,
@@ -134,7 +134,6 @@ class FipeDatabaseRepository:
     ) -> None:
         _reference_month = car_price.reference_month_name.strip()
         _value = convert_brl_str_to_float(car_price.value)
-        _raw_data_json = json.dumps(car_price.raw_data)
 
         stmt = (
             insert(db_models.CarPrice)
@@ -152,7 +151,7 @@ class FipeDatabaseRepository:
                 # converted from schema
                 reference_month=_reference_month,
                 value=_value,
-                raw_data=_raw_data_json,
+                raw_data=car_price.raw_data,
             )
             .on_conflict_do_update(
                 index_elements=[
@@ -162,6 +161,7 @@ class FipeDatabaseRepository:
                     db_models.CarPrice.value: _value,
                     db_models.CarPrice.query_date: car_price.query_date,
                     db_models.CarPrice.reference_month: car_price.reference_month_name,
+                    db_models.CarPrice.raw_data: car_price.raw_data,
                 },
             )
         )
