@@ -21,7 +21,7 @@ def main():
 
     with logging_redirect_tqdm():
         try:
-            crawler.populate_reference_tables_in_ascending_order(year_lte=2002)
+            crawler.populate_reference_tables_in_ascending_order(year_lte=2025)
         except KeyboardInterrupt:
             logging.error("Process interrupted by the user")
             checkpoint = crawler.get_checkpoint()

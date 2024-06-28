@@ -54,12 +54,15 @@ class FipeApi:
         self,
         url: str,
         params: dict[str, str],
-        retry_count: int = 0,
+        _retry_count: int = 0,
     ) -> str:
         response = requests.post(url, params=params, timeout=10)
 
+        # Exponential backoff
+        _backoff = 2**_retry_count
+
         if response.status_code == 200:
-            time.sleep(0.5)
+            time.sleep(max(0.5, _backoff / 2))
 
             return response.text
 
@@ -69,16 +72,16 @@ class FipeApi:
         logger.debug("Response: %s", response.text)
 
         if response.status_code == 429:
-            logger.error("Too many requests. Waiting 5 seconds.")
-            time.sleep(5)
+            logger.error("Too many requests. Waiting %s seconds.", _backoff * 2)
+            time.sleep(_backoff * 2)
 
         if response.status_code == 520:
-            logger.error("Server response error. Waiting 5 seconds.")
-            time.sleep(5)
+            logger.error("Server response error. Waiting %s seconds.", _backoff)
+            time.sleep(_backoff)
 
-        if retry_count < 3:
+        if _retry_count < 6:
             logger.error("Retrying request...")
-            return self._make_request_raw(url, params, retry_count + 1)
+            return self._make_request_raw(url, params, _retry_count + 1)
 
         raise exceptions.FipeApiRequestException("Failed to make request")
 

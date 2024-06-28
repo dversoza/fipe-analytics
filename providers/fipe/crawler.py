@@ -27,7 +27,7 @@ class FipeCrawler:
         )
         _checkpoint_year = self._checkpoint.get("year", 0)
         _checkpoint_month = self._checkpoint.get("month", 0)
-        for reference_table in _reference_tables:
+        for reference_table in tqdm(_reference_tables, desc="Tab. Ref."):
             if reference_table.year < _checkpoint_year:
                 continue
 
@@ -36,6 +36,8 @@ class FipeCrawler:
 
             self._checkpoint["year"] = reference_table.year
             self._checkpoint["month"] = reference_table.month
+
+            logger.info("Tabela de Referência: %s", reference_table.display_name)
 
             self.populate_prices_for_reference_table(
                 reference_table_id=reference_table.fipe_id,
@@ -61,7 +63,7 @@ class FipeCrawler:
             if int(manufacturer.code) < _checkpoint_manufacturer:
                 continue
 
-            logger.info("Processando Marca: %s", manufacturer.display_name)
+            logger.info("Marca: %s", manufacturer.display_name)
 
             self._checkpoint["manufacturer"] = int(manufacturer.code)
 
