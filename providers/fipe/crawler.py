@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 from sqlalchemy.orm import Session
 from tqdm import tqdm
@@ -12,12 +13,62 @@ logger = logging.getLogger(__name__)
 
 
 class FipeCrawler:
-    def __init__(self, checkpoint: dict | None = None) -> None:
+    def __init__(
+        self, order: Literal["ASC", "DESC"] = "ASC", checkpoint: dict | None = None
+    ) -> None:
         self.fipe_api = FipeApi()
         self.fipe_db_repo = FipeDatabaseRepository()
         self.db_session = Session(bind=create_db_engine())
 
+        self._order = order
         self._checkpoint = checkpoint or {}
+
+    def populate_reference_tables(self, vehicle_type_id: int = 1):
+        if self._order == "ASC":
+            if "year" not in self._checkpoint:
+                self._checkpoint = {"year": 0, "month": 0}
+            self.populate_reference_tables_in_ascending_order(
+                vehicle_type_id=vehicle_type_id
+            )
+        elif self._order == "DESC":
+            if "year" not in self._checkpoint:
+                self._checkpoint = {"year": 9999, "month": 9999}
+            self.populate_reference_tables_in_descending_order(
+                vehicle_type_id=vehicle_type_id
+            )
+        else:
+            raise ValueError(f"Invalid order: {self._order}")
+
+    def populate_reference_tables_in_descending_order(
+        self, year_gte: int = 2002, vehicle_type_id: int = 1
+    ):
+        _reference_tables = db_services.list_reference_tables(
+            self.db_session, year_gte=year_gte
+        )
+        _checkpoint_year = self._checkpoint["year"]
+        _checkpoint_month = self._checkpoint["month"]
+        for reference_table in tqdm(
+            _reference_tables, desc="Tab. Ref.", total=len(_reference_tables)
+        ):
+            if reference_table.year > _checkpoint_year:
+                continue
+
+            if reference_table.month > _checkpoint_month:
+                continue
+
+            self._checkpoint["year"] = reference_table.year
+            self._checkpoint["month"] = reference_table.month
+
+            logger.info("Tabela de Referência: %s", reference_table.display_name)
+
+            self.populate_prices_for_reference_table(
+                reference_table_id=reference_table.fipe_id,
+                vehicle_type_id=vehicle_type_id,
+            )
+
+            self._checkpoint["manufacturer"] = 0
+            self._checkpoint["model"] = 0
+            self._checkpoint["year_model"] = 0
 
     def populate_reference_tables_in_ascending_order(
         self, year_lte: int = 2002, vehicle_type_id: int = 1
@@ -55,6 +106,7 @@ class FipeCrawler:
             reference_table_id, vehicle_type_id
         )
         self.fipe_db_repo.persist_manufacturers(manufacturers_response, vehicle_type_id)
+
         manufacturers = sorted(
             manufacturers_response.manufacturers, key=lambda x: int(x.code)
         )

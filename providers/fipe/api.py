@@ -18,6 +18,9 @@ class FipeApi:
     BASE_URL = "https://veiculos.fipe.org.br/api/veiculos"
     REQUEST_CACHE_DIR = "cache/fipe_raw_responses"
 
+    def __init__(self) -> None:
+        self._session = requests.Session()
+
     def _hash_request(self, endpoint: str, params: dict[str, str]) -> str:
         return sha256(f"{endpoint}{params}".encode()).hexdigest()
 
@@ -56,15 +59,17 @@ class FipeApi:
         params: dict[str, str],
         _retry_count: int = 0,
     ) -> str:
-        response = requests.post(url, params=params, timeout=10)
+        try:
+            response = self._session.post(url, params=params, timeout=10)
+        except requests.exceptions.RequestException as exc:
+            logger.error("Error making request: %s", exc)
+            raise exceptions.FipeApiRequestException("Failed to make request") from exc
+
+        if response.status_code == 200:
+            return response.text
 
         # Exponential backoff
         _backoff = 2**_retry_count
-
-        if response.status_code == 200:
-            time.sleep(max(0.5, _backoff / 2))
-
-            return response.text
 
         logger.error("Request to failed with status code %s", response.status_code)
         logger.debug("URL: %s", url)
@@ -72,15 +77,18 @@ class FipeApi:
         logger.debug("Response: %s", response.text)
 
         if response.status_code == 429:
-            logger.error("Too many requests. Waiting %s seconds.", _backoff * 2)
-            time.sleep(_backoff * 2)
+            _wait = _backoff * 2
+            if _wait > 5:
+                logger.warning("Too many requests. Waiting %s seconds.", _wait)
+
+            time.sleep(_wait)
 
         if response.status_code == 520:
             logger.error("Server response error. Waiting %s seconds.", _backoff)
             time.sleep(_backoff)
 
         if _retry_count < 6:
-            logger.error("Retrying request...")
+            logger.debug("Retrying request...(%s/5)", _retry_count)
             return self._make_request_raw(url, params, _retry_count + 1)
 
         raise exceptions.FipeApiRequestException("Failed to make request")
